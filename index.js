@@ -1,14 +1,14 @@
 const fs = require('fs');
+const http = require('http');
 
 const Twit = require('twit');
 const Twitter = new Twit(require('./config.js'));
 
 const ob = require('urbit-ob');
-const { sigil, stringRenderer } = require('@tlon/sigil-js');
 
 const RNG = require('rng-js');
 
-const { convert: svgToPng } = require('convert-svg-to-png');
+const sharp = require('sharp');
 
 const STATE_FILE = 'posted.json';
 const SIGIL_SIZE = 1024;
@@ -33,22 +33,45 @@ const saveState = function() {
   fs.writeFileSync(STATE_FILE, JSON.stringify(posted));
 }
 
-const renderSvg = function(p) {
-  return sigil({
-    patp: ob.patp(p),
-    renderer: stringRenderer,
-    size: SIGIL_SIZE,
-    colors: ['black', 'white'],
+const loadData = function(p) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: '159.65.204.48',
+      port: 8081,
+      path: '/emblemish/full/'+p+'.json',
+      method: 'GET'
+    };
+
+    const req = http.request(opts, res => {
+      if (res.statusCode !== 200) {
+        reject('unexpected status ' + res.statusCode);
+      }
+
+      let dat = '';
+      res.on('data', d => {
+        dat = dat + d;
+      });
+      res.on('end', () => {
+        let res = JSON.parse(dat);
+        if (!res.emblem) reject('response no emblem');
+        if (!res.title)  reject('response no title');
+        resolve(res);
+      });
+    });
+
+    req.on('error', error => {
+      reject(error);
+    });
+    req.end();
   });
 }
 
-const renderPng = function(p) {
-  const svg = renderSvg(p);
-  return svgToPng(svg, {
-    background: 'black',
-    width: (SIGIL_SIZE/9*16), // avoid twitter crop
-    height: SIGIL_SIZE
-  }); // promise
+const renderPng = function(s) {
+  //NOTE  dumb lib can't scale svgs cleanly
+  s = s.replace(/<svg.*><defs>/, '<svg version="1.1" width="1024" height="1024" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs>');
+  return sharp(Buffer.from(s, 'utf8'))
+    .resize(Math.floor(SIGIL_SIZE/9*16), SIGIL_SIZE, { fit: 'contain', background: 'white' })
+    .png().toBuffer();
 }
 
 const pickP = function(s) {
@@ -60,8 +83,8 @@ const pickP = function(s) {
   return p;
 }
 
-const logP = function(p) {
-  console.log('posted', ob.patp(p));
+const logP = function(p, t) {
+  console.log('posted', ob.patp(p), t);
   posted[p] = true;
   saveState();
 }
@@ -73,8 +96,8 @@ const uploadPng = async function(png) {
   return res.data.media_id_string;
 }
 
-const sendTweet = async function(p, mediaId) {
-  const params = { status: ob.patp(p), media_ids: [mediaId] }
+const sendTweet = async function(t, mediaId) {
+  const params = { status: t, media_ids: [mediaId] }
   const res = await Twitter.post('statuses/update', params);
   if (res.err) throw res.err;
   return;
@@ -91,11 +114,12 @@ const run = async function() {
   let s = Math.floor(n / POST_MSECS);
   setTimeout(run, (POST_MSECS - n % POST_MSECS));
   try {
-    const p = pickP(s);
-    const png = await renderPng(p);
+    let p = pickP(s);
+    const dat = await loadData(p);
+    const png = await renderPng(dat.emblem);
     const imgId = await uploadPng(png);
-    await sendTweet(p, imgId);
-    logP(p);
+    await sendTweet(dat.title, imgId);
+    logP(p, dat.title);
   } catch (e) {
     console.error('failed to post', e);
   }

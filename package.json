@@ -1,6 +1,6 @@
 {
-  "name": "everysigil",
-  "version": "1.0.1",
+  "name": "everyemblemish",
+  "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -9,10 +9,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@tlon/sigil-js": "^1.4.1",
-    "convert-svg-to-png": "^0.5.0",
     "react": "^16.13.1",
     "rng-js": "^1.0.1",
+    "sharp": "^0.29.3",
     "twit": "^2.2.11",
     "urbit-ob": "^5.0.0"
   }
