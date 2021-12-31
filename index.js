@@ -38,7 +38,7 @@ const loadData = function(p) {
     const opts = {
       hostname: '159.65.204.48',
       port: 8081,
-      path: '/emblemish/full/'+p+'.json',
+      path: '/emblemish/'+p+'.json',
       method: 'GET'
     };
 
@@ -121,7 +121,7 @@ const run = async function() {
     await sendTweet(dat.title, imgId);
     logP(p, dat.title);
   } catch (e) {
-    console.error('failed to post', e);
+    console.error('failed to post:', e);
   }
   return;
 }
